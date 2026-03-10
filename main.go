@@ -46,7 +46,7 @@ func main() {
 	if allowedChatIDStr == "" {
 		log.Fatal("Ошибка: ALLOWED_CHAT_ID не установлен")
 	}
-	
+
 	var err error
 	allowedChatID, err = strconv.ParseInt(allowedChatIDStr, 10, 64)
 	if err != nil {
@@ -246,8 +246,8 @@ func handleFindPoll(bot *tgbotapi.BotAPI, db *Database, msg *tgbotapi.Message) {
 	_, err = bot.Send(reply)
 	if err != nil {
 		// Если сообщение не найдено (удалено или недоступно)
-		if err.Error() == "Bad Request: message to reply not found" || 
-		   err.Error() == "Bad Request: replied message not found" {
+		if err.Error() == "Bad Request: message to reply not found" ||
+			err.Error() == "Bad Request: replied message not found" {
 			errorReply := tgbotapi.NewMessage(chatID, "⚠️ Опрос был удалён или недоступен.\n\nСоздайте новый опрос с помощью /newpoll (но только со следующей недели, так как опрос на текущую неделю уже был зарегистрирован в базе).")
 			bot.Send(errorReply)
 			return
