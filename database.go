@@ -19,6 +19,13 @@ type Poll struct {
 	CreatedAt  time.Time
 }
 
+type DB interface {
+	HasWeekPoll(chatID int64) (bool, error)
+	SavePoll(chatID int64, messageID int, pollID string) error
+	GetCurrentWeekPoll(chatID int64) (*Poll, error)
+	Close() error
+}
+
 // Database управляет подключением к базе данных
 type Database struct {
 	db *sql.DB

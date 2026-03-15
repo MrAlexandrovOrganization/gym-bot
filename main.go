@@ -118,7 +118,7 @@ func main() {
 }
 
 // handleCommand обрабатывает команды бота
-func handleCommand(bot *tgbotapi.BotAPI, db *Database, msg *tgbotapi.Message) {
+func handleCommand(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
 	switch msg.Command() {
 	case "start":
 		handleStart(bot, msg)
@@ -169,7 +169,7 @@ func handleHelp(bot *tgbotapi.BotAPI, msg *tgbotapi.Message) {
 }
 
 // handleNewPoll обрабатывает команду /newpoll
-func handleNewPoll(bot *tgbotapi.BotAPI, db *Database, msg *tgbotapi.Message) {
+func handleNewPoll(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
 	chatID := msg.Chat.ID
 
 	// Проверяем, есть ли уже опрос на эту неделю
@@ -221,7 +221,7 @@ func handleNewPoll(bot *tgbotapi.BotAPI, db *Database, msg *tgbotapi.Message) {
 }
 
 // handleFindPoll обрабатывает команду /findpoll
-func handleFindPoll(bot *tgbotapi.BotAPI, db *Database, msg *tgbotapi.Message) {
+func handleFindPoll(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
 	chatID := msg.Chat.ID
 
 	// Получаем опрос текущей недели
