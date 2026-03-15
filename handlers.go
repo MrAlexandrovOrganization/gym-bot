@@ -56,9 +56,7 @@ func createPoll(chatID int64) tgbotapi.SendPollConfig {
 	}
 }
 
-func handleNewPollImpl(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
-	chatID := msg.Chat.ID
-
+func handleNewPollImpl(bot *tgbotapi.BotAPI, db DB, chatID int64) {
 	hasWeekPoll, err := checkWeekPoll(db, chatID)
 	if err != nil {
 		log.Printf("Ошибка проверки опроса: %v", err)
@@ -88,7 +86,7 @@ func handleNewPollImpl(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
 
 // handleNewPoll обрабатывает команду /newpoll
 func handleNewPoll(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
-	handleNewPollImpl(bot, db, msg)
+	handleNewPollImpl(bot, db, msg.Chat.ID)
 }
 
 // handleFindPoll обрабатывает команду /findpoll

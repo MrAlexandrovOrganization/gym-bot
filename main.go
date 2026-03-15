@@ -148,5 +148,9 @@ func main() {
 	}
 	defer db.Close()
 
+	startCron("0 8 * * 1", func() {
+		log.Println("[cron] Запуск автоматического создания опроса...")
+		handleNewPollImpl(bot, db, allowedChatID)
+	})
 	startPolling()
 }
