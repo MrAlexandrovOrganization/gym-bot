@@ -51,7 +51,7 @@ const (
 )
 
 const (
-	poolQuestion = "🏋️ Когда идёте в зал на этой неделе?"
+	pollQuestion = "🏋️ Когда идёте в зал на этой неделе?"
 )
 
 var (

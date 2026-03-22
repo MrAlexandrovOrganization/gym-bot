@@ -61,7 +61,7 @@ func checkWeekPoll(db DB, chatID int64, weekNumber int, year int) (bool, error) 
 func createPoll(chatID int64) tgbotapi.SendPollConfig {
 	return tgbotapi.SendPollConfig{
 		BaseChat:              tgbotapi.BaseChat{ChatID: chatID},
-		Question:              poolQuestion,
+		Question:              pollQuestion,
 		Options:               weekdays,
 		IsAnonymous:           false,
 		AllowsMultipleAnswers: true,
