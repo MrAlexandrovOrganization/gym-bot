@@ -18,6 +18,24 @@ services:
     networks:
       - gym-bot-network
 
+  # pgAdmin - веб-интерфейс для PostgreSQL
+  pgadmin:
+    image: dpage/pgadmin4:9.13.0
+    container_name: gym-bot-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: ${PGADMIN_EMAIL:-admin@example.com}
+      PGADMIN_DEFAULT_PASSWORD: ${PGADMIN_PASSWORD:-admin}
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - gym-bot-network
+
   # Telegram бот
   bot:
     build:
@@ -37,6 +55,8 @@ services:
 
 volumes:
   postgres_data:
+    driver: local
+  pgadmin_data:
     driver: local
 
 networks:
