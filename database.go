@@ -2,6 +2,7 @@ package main
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"time"
 
@@ -20,7 +21,7 @@ type Poll struct {
 }
 
 type DB interface {
-	HasWeekPoll(chatID int64, weekNuber, year int) (bool, error)
+	HasWeekPoll(chatID int64, weekNumber, year int) (bool, error)
 	SavePoll(chatID int64, messageID int, pollID string, weekNumber, year int) error
 	GetWeekPoll(chatID int64, weekNumber, year int) (*Poll, error)
 	Close() error
@@ -31,27 +32,16 @@ type Database struct {
 	db *sql.DB
 }
 
-func CreateDatabase(databaseURL string) (db *Database, err error) {
+func NewDatabase(databaseURL string) (*Database, error) {
 	if databaseURL == "" {
 		return nil, fmt.Errorf("DATABASE_URL is empty")
 	}
 
-	db, err = newDatabase(databaseURL)
-	if err != nil {
-		return nil, err
-	}
-
-	return db, err
-}
-
-// newDatabase создаёт новое подключение к базе данных PostgreSQL
-func newDatabase(connStr string) (*Database, error) {
-	db, err := sql.Open("postgres", connStr)
+	db, err := sql.Open("postgres", databaseURL)
 	if err != nil {
 		return nil, fmt.Errorf("ошибка открытия базы данных: %w", err)
 	}
 
-	// Проверяем подключение
 	if err := db.Ping(); err != nil {
 		return nil, fmt.Errorf("ошибка подключения к базе данных: %w", err)
 	}
@@ -129,7 +119,7 @@ func (d *Database) GetWeekPoll(chatID int64, weekNumber int, year int) (*Poll, e
 		&poll.CreatedAt,
 	)
 
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return nil, nil
 	}
 	if err != nil {

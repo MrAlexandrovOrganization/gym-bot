@@ -2,8 +2,9 @@ package main
 
 import "time"
 
-func getWeekAndYear(date time.Time) (int, int) {
-	return date.ISOWeek()
+func getWeekAndYear(date time.Time) (week, year int) {
+	year, week = date.ISOWeek()
+	return
 }
 
 func getCurrentWeekAndYear() (int, int) {

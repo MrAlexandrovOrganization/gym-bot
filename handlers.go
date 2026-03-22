@@ -3,11 +3,12 @@ package main
 import (
 	"fmt"
 	"log"
+	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 )
 
-type CommandHandler func(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message)
+type CommandHandler func(app *App, msg *tgbotapi.Message)
 
 var commands = map[string]CommandHandler{
 	"start":    handleStart,
@@ -16,38 +17,31 @@ var commands = map[string]CommandHandler{
 	"findpoll": handleFindCurrentPoll,
 }
 
-func CreateBot(token string) (bot *tgbotapi.BotAPI, err error) {
+func NewBot(token string) (*tgbotapi.BotAPI, error) {
 	if token == "" {
 		return nil, fmt.Errorf("TELEGRAM_BOT_TOKEN is empty")
 	}
-
-	bot, err = tgbotapi.NewBotAPI(token)
-	if err != nil {
-		return nil, err
-	}
-
-	return bot, err
+	return tgbotapi.NewBotAPI(token)
 }
 
 // handleCommand обрабатывает команды бота
-func handleCommand(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
+func (a *App) handleCommand(msg *tgbotapi.Message) {
 	handler, ok := commands[msg.Command()]
 	if !ok {
-		reply := tgbotapi.NewMessage(msg.Chat.ID, handleUnknownCommandText)
-		bot.Send(reply)
+		a.bot.Send(tgbotapi.NewMessage(msg.Chat.ID, handleUnknownCommandText))
 		return
 	}
-	handler(bot, db, msg)
+	handler(a, msg)
 }
 
 // handleStart обрабатывает команду /start
-func handleStart(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
-	bot.Send(tgbotapi.NewMessage(msg.Chat.ID, handleStartText))
+func handleStart(app *App, msg *tgbotapi.Message) {
+	app.bot.Send(tgbotapi.NewMessage(msg.Chat.ID, handleStartText))
 }
 
 // handleHelp обрабатывает команду /help
-func handleHelp(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
-	bot.Send(tgbotapi.NewMessage(msg.Chat.ID, handleHelpText))
+func handleHelp(app *App, msg *tgbotapi.Message) {
+	app.bot.Send(tgbotapi.NewMessage(msg.Chat.ID, handleHelpText))
 }
 
 func checkWeekPoll(db DB, chatID int64, weekNumber int, year int) (bool, error) {
@@ -68,78 +62,70 @@ func createPoll(chatID int64) tgbotapi.SendPollConfig {
 	}
 }
 
-func newPollImpl(bot *tgbotapi.BotAPI, db DB, chatID int64, weekNumber, year int) {
-	hasWeekPoll, err := checkWeekPoll(db, chatID, weekNumber, year)
+func (a *App) newPollImpl(chatID int64, weekNumber, year int) {
+	hasWeekPoll, err := checkWeekPoll(a.db, chatID, weekNumber, year)
 	if err != nil {
 		log.Printf("Ошибка проверки опроса: %v", err)
-		bot.Send(tgbotapi.NewMessage(chatID, errorCheckPoolText))
+		a.bot.Send(tgbotapi.NewMessage(chatID, errorCheckPoolText))
 		return
 	}
 	if hasWeekPoll {
-		findPollImpl(bot, db, chatID, weekNumber, year)
+		a.findPollImpl(chatID, weekNumber, year)
 		return
 	}
 
-	pollMsg, err := bot.Send(createPoll(chatID))
+	pollMsg, err := a.bot.Send(createPoll(chatID))
 	if err != nil {
 		log.Printf("Ошибка создания опроса: %v", err)
-		bot.Send(tgbotapi.NewMessage(chatID, errorCreatePollText))
+		a.bot.Send(tgbotapi.NewMessage(chatID, errorCreatePollText))
 		return
 	}
 
-	if err = db.SavePoll(chatID, pollMsg.MessageID, pollMsg.Poll.ID, weekNumber, year); err != nil {
+	if err = a.db.SavePoll(chatID, pollMsg.MessageID, pollMsg.Poll.ID, weekNumber, year); err != nil {
 		log.Printf("Ошибка сохранения опроса: %v", err)
-		bot.Send(tgbotapi.NewMessage(chatID, errorSavePollText))
+		a.bot.Send(tgbotapi.NewMessage(chatID, errorSavePollText))
 		return
 	}
 
-	bot.Send(tgbotapi.NewMessage(chatID, successSavePollText))
+	a.bot.Send(tgbotapi.NewMessage(chatID, successSavePollText))
 }
 
-func handleNewPoll(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
+func handleNewPoll(app *App, msg *tgbotapi.Message) {
 	weekNumber, year := getCurrentWeekAndYear()
-
-	newPollImpl(bot, db, msg.Chat.ID, weekNumber, year)
+	app.newPollImpl(msg.Chat.ID, weekNumber, year)
 }
 
-func findPollImpl(bot *tgbotapi.BotAPI, db DB, chatID int64, weekNuber, year int) {
-	// Получаем опрос текущей недели
-	poll, err := db.GetWeekPoll(chatID, weekNuber, year)
+func (a *App) findPollImpl(chatID int64, weekNumber, year int) {
+	poll, err := a.db.GetWeekPoll(chatID, weekNumber, year)
 	if err != nil {
 		log.Printf("Ошибка получения опроса: %v", err)
-		reply := tgbotapi.NewMessage(chatID, errorSearchPollText)
-		bot.Send(reply)
+		a.bot.Send(tgbotapi.NewMessage(chatID, errorSearchPollText))
 		return
 	}
 
 	if poll == nil {
-		reply := tgbotapi.NewMessage(chatID, errorNoPollText)
-		bot.Send(reply)
+		a.bot.Send(tgbotapi.NewMessage(chatID, errorNoPollText))
 		return
 	}
 
-	// Отправляем ответ на сообщение с опросом
 	reply := tgbotapi.NewMessage(chatID, currentPollText)
 	reply.ReplyToMessageID = poll.MessageID
 
-	_, err = bot.Send(reply)
+	_, err = a.bot.Send(reply)
 	if err != nil {
-		// Если сообщение не найдено (удалено или недоступно)
-		if err.Error() == "Bad Request: message to reply not found" ||
-			err.Error() == "Bad Request: replied message not found" {
-			errorReply := tgbotapi.NewMessage(chatID, errorPollUnavailableText)
-			bot.Send(errorReply)
+		errMsg := err.Error()
+		if strings.Contains(errMsg, "message to reply not found") ||
+			strings.Contains(errMsg, "replied message not found") {
+			a.bot.Send(tgbotapi.NewMessage(chatID, errorPollUnavailableText))
 			return
 		}
 		log.Printf("Ошибка отправки ответа: %v", err)
-		errorReply := tgbotapi.NewMessage(chatID, fmt.Sprintf(errorSendAnswerText+": %v", err))
-		bot.Send(errorReply)
+		a.bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf(errorSendAnswerText+": %v", err)))
 	}
 }
 
-// handleFindPoll обрабатывает команду /findpoll
-func handleFindCurrentPoll(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
+// handleFindCurrentPoll обрабатывает команду /findpoll
+func handleFindCurrentPoll(app *App, msg *tgbotapi.Message) {
 	weekNumber, year := getCurrentWeekAndYear()
-
-	findPollImpl(bot, db, msg.Chat.ID, weekNumber, year)
+	app.findPollImpl(msg.Chat.ID, weekNumber, year)
 }

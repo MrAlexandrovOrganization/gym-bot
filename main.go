@@ -14,24 +14,18 @@ import (
 	"golang.org/x/sync/errgroup"
 )
 
-var (
+type App struct {
 	bot           *tgbotapi.BotAPI
 	db            DB
 	allowedChatID int64
-)
+}
 
-func getAllowedChatID() (allowedChatID int64, err error) {
-	allowedChatIDStr := os.Getenv("ALLOWED_CHAT_ID")
-	if allowedChatIDStr == "" {
+func getAllowedChatID() (int64, error) {
+	s := os.Getenv("ALLOWED_CHAT_ID")
+	if s == "" {
 		return 0, fmt.Errorf("ALLOWED_CHAT_ID не установлен")
 	}
-
-	allowedChatID, err = strconv.ParseInt(allowedChatIDStr, 10, 64)
-	if err != nil {
-		return 0, err
-	}
-
-	return allowedChatID, nil
+	return strconv.ParseInt(s, 10, 64)
 }
 
 func init() {
@@ -40,20 +34,21 @@ func init() {
 	}
 }
 
-func prepare() (err error) {
+func newApp() (*App, error) {
+	app := &App{}
 	g := new(errgroup.Group)
 
 	g.Go(func() (err error) {
-		bot, err = CreateBot(os.Getenv("TELEGRAM_BOT_TOKEN"))
+		app.bot, err = NewBot(os.Getenv("TELEGRAM_BOT_TOKEN"))
 		if err != nil {
 			return err
 		}
-		log.Printf("Авторизован как @%s", bot.Self.UserName)
+		log.Printf("Авторизован как @%s", app.bot.Self.UserName)
 		return nil
 	})
 
 	g.Go(func() (err error) {
-		db, err = CreateDatabase(os.Getenv("DATABASE_URL"))
+		app.db, err = NewDatabase(os.Getenv("DATABASE_URL"))
 		if err != nil {
 			return err
 		}
@@ -62,36 +57,34 @@ func prepare() (err error) {
 	})
 
 	g.Go(func() (err error) {
-		allowedChatID, err = getAllowedChatID()
+		app.allowedChatID, err = getAllowedChatID()
 		if err != nil {
 			return err
 		}
-		log.Printf("Бот работает только с чатом ID: %d", allowedChatID)
+		log.Printf("Бот работает только с чатом ID: %d", app.allowedChatID)
 		return nil
 	})
 
 	if err := g.Wait(); err != nil {
-		return err
+		return nil, err
 	}
 
-	return nil
+	return app, nil
 }
 
-func startPolling() {
+func (a *App) startPolling() {
 	u := tgbotapi.NewUpdate(0)
 	u.Timeout = 60
 
-	updates := bot.GetUpdatesChan(u)
+	updates := a.bot.GetUpdatesChan(u)
 
-	// Graceful shutdown
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
 
 	go func() {
 		<-sigChan
 		log.Println("Завершение работы бота...")
-		bot.StopReceivingUpdates()
-		os.Exit(0)
+		a.bot.StopReceivingUpdates()
 	}()
 
 	log.Println("✅ Бот запущен и готов к работе!")
@@ -102,30 +95,31 @@ func startPolling() {
 				return
 			}
 
-			if update.Message.Chat.ID != allowedChatID {
+			if update.Message.Chat.ID != a.allowedChatID {
 				log.Printf("Игнорируем сообщение из неразрешённого чата: %d (разрешён: %d)",
-					update.Message.Chat.ID, allowedChatID)
+					update.Message.Chat.ID, a.allowedChatID)
 				return
 			}
 
 			if update.Message.IsCommand() {
-				handleCommand(bot, db, update.Message)
+				a.handleCommand(update.Message)
 			}
 		}()
 	}
 }
 
 func main() {
-	if err := prepare(); err != nil {
+	app, err := newApp()
+	if err != nil {
 		log.Fatal(err)
 	}
-	defer db.Close()
+	defer app.db.Close()
 
 	startCron("0 22 * * 0", func() {
 		log.Println("[cron] Запуск автоматического создания опроса...")
 		nextDate := time.Now().AddDate(0, 0, 1)
-		weekNumber, year := getWeekAndYear(nextDate)
-		newPollImpl(bot, db, allowedChatID, weekNumber, year)
+		week, year := getWeekAndYear(nextDate)
+		app.newPollImpl(app.allowedChatID, week, year)
 	})
-	startPolling()
+	app.startPolling()
 }
