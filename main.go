@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"strconv"
 	"syscall"
+	"time"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
@@ -148,9 +149,11 @@ func main() {
 	}
 	defer db.Close()
 
-	startCron("0 8 * * 1", func() {
+	startCron("0 22 * * 0", func() {
 		log.Println("[cron] Запуск автоматического создания опроса...")
-		handleNewPollImpl(bot, db, allowedChatID)
+		nextDate := time.Now().AddDate(0, 0, 1)
+		weekNumber, year := getWeekAndYear(nextDate)
+		newPollImpl(bot, db, allowedChatID, weekNumber, year)
 	})
 	startPolling()
 }

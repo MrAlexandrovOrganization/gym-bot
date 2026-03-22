@@ -20,9 +20,9 @@ type Poll struct {
 }
 
 type DB interface {
-	HasWeekPoll(chatID int64) (bool, error)
-	SavePoll(chatID int64, messageID int, pollID string) error
-	GetCurrentWeekPoll(chatID int64) (*Poll, error)
+	HasWeekPoll(chatID int64, weekNuber, year int) (bool, error)
+	SavePoll(chatID int64, messageID int, pollID string, weekNumber, year int) error
+	GetWeekPoll(chatID int64, weekNumber, year int) (*Poll, error)
 	Close() error
 }
 
@@ -73,18 +73,32 @@ func (d *Database) init() error {
 	return nil
 }
 
-// GetWeekNumber возвращает номер недели для заданной даты
-func GetWeekNumber(date time.Time) int {
+func getWeekNumber(date time.Time) int {
 	_, week := date.ISOWeek()
 	return week
 }
 
-// HasWeekPoll проверяет, существует ли опрос для текущей недели
-func (d *Database) HasWeekPoll(chatID int64) (bool, error) {
-	now := time.Now()
-	weekNumber := GetWeekNumber(now)
-	year := now.Year()
+func GetCurrentWeekNumber() int {
+	return getWeekNumber(time.Now())
+}
 
+func GetYear(date time.Time) int {
+	return date.Year()
+}
+
+func GetCurrentYear() int {
+	return GetYear(time.Now())
+}
+
+func getWeekAndYear(date time.Time) (int, int) {
+	return getWeekNumber(date), GetYear(date)
+}
+
+func getCurrentWeekAndYear() (int, int) {
+	return getWeekAndYear(time.Now())
+}
+
+func (d *Database) HasWeekPoll(chatID int64, weekNumber int, year int) (bool, error) {
 	var count int
 	query := `SELECT COUNT(*) FROM polls WHERE chat_id = $1 AND week_number = $2 AND year = $3`
 	err := d.db.QueryRow(query, chatID, weekNumber, year).Scan(&count)
@@ -95,12 +109,14 @@ func (d *Database) HasWeekPoll(chatID int64) (bool, error) {
 	return count > 0, nil
 }
 
-// SavePoll сохраняет опрос в базу данных
-func (d *Database) SavePoll(chatID int64, messageID int, pollID string) error {
-	now := time.Now()
-	weekNumber := GetWeekNumber(now)
-	year := now.Year()
+// HasWeekPoll проверяет, существует ли опрос для текущей недели
+func (d *Database) HasCurrentWeekPoll(chatID int64) (bool, error) {
+	weekNumber, year := getCurrentWeekAndYear()
 
+	return d.HasWeekPoll(chatID, weekNumber, year)
+}
+
+func (d *Database) SavePoll(chatID int64, messageID int, pollID string, weekNumber int, year int) error {
 	query := `
 	INSERT INTO polls (chat_id, message_id, poll_id, week_number, year)
 	VALUES ($1, $2, $3, $4, $5)
@@ -114,12 +130,14 @@ func (d *Database) SavePoll(chatID int64, messageID int, pollID string) error {
 	return nil
 }
 
-// GetCurrentWeekPoll возвращает опрос текущей недели
-func (d *Database) GetCurrentWeekPoll(chatID int64) (*Poll, error) {
-	now := time.Now()
-	weekNumber := GetWeekNumber(now)
-	year := now.Year()
+// SaveCurrentPoll сохраняет опрос в базу данных
+func (d *Database) SaveCurrentPoll(chatID int64, messageID int, pollID string) error {
+	weekNumber, year := getCurrentWeekAndYear()
 
+	return d.SavePoll(chatID, messageID, pollID, weekNumber, year)
+}
+
+func (d *Database) GetWeekPoll(chatID int64, weekNumber int, year int) (*Poll, error) {
 	query := `
 	SELECT id, chat_id, message_id, poll_id, week_number, year, created_at
 	FROM polls
@@ -145,6 +163,13 @@ func (d *Database) GetCurrentWeekPoll(chatID int64) (*Poll, error) {
 	}
 
 	return poll, nil
+}
+
+// GetCurrentWeekPoll возвращает опрос текущей недели
+func (d *Database) GetCurrentWeekPoll(chatID int64) (*Poll, error) {
+	weekNumber, year := getCurrentWeekAndYear()
+
+	return d.GetWeekPoll(chatID, weekNumber, year)
 }
 
 // Close закрывает подключение к базе данных

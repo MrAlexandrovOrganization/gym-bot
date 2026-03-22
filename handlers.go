@@ -13,7 +13,7 @@ var commands = map[string]CommandHandler{
 	"start":    handleStart,
 	"help":     handleHelp,
 	"newpoll":  handleNewPoll,
-	"findpoll": handleFindPoll,
+	"findpoll": handleFindCurrentPoll,
 }
 
 // handleCommand обрабатывает команды бота
@@ -37,9 +37,19 @@ func handleHelp(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
 	bot.Send(tgbotapi.NewMessage(msg.Chat.ID, handleHelpText))
 }
 
-// checkWeekPoll — чистая логика, без Telegram
-func checkWeekPoll(db DB, chatID int64) (bool, error) {
-	hasWeekPoll, err := db.HasWeekPoll(chatID)
+func checkWeekPoll(db DB, chatID int64, weekNumber int, year int) (bool, error) {
+	hasWeekPoll, err := db.HasWeekPoll(chatID, weekNumber, year)
+	if err != nil {
+		return false, fmt.Errorf("ошибка проверки опроса: %w", err)
+	}
+	return hasWeekPoll, nil
+}
+
+// checkCurrentWeekPoll — чистая логика, без Telegram
+func checkCurrentWeekPoll(db DB, chatID int64) (bool, error) {
+	weekNumber, year := getCurrentWeekAndYear()
+
+	hasWeekPoll, err := checkWeekPoll(db, chatID, weekNumber, year)
 	if err != nil {
 		return false, fmt.Errorf("ошибка проверки опроса: %w", err)
 	}
@@ -56,15 +66,15 @@ func createPoll(chatID int64) tgbotapi.SendPollConfig {
 	}
 }
 
-func handleNewPollImpl(bot *tgbotapi.BotAPI, db DB, chatID int64) {
-	hasWeekPoll, err := checkWeekPoll(db, chatID)
+func newPollImpl(bot *tgbotapi.BotAPI, db DB, chatID int64, weekNumber, year int) {
+	hasWeekPoll, err := checkWeekPoll(db, chatID, weekNumber, year)
 	if err != nil {
 		log.Printf("Ошибка проверки опроса: %v", err)
 		bot.Send(tgbotapi.NewMessage(chatID, errorCheckPoolText))
 		return
 	}
 	if hasWeekPoll {
-		bot.Send(tgbotapi.NewMessage(chatID, errorAlreadyExistsText))
+		findPollImpl(bot, db, chatID, weekNumber, year)
 		return
 	}
 
@@ -75,7 +85,7 @@ func handleNewPollImpl(bot *tgbotapi.BotAPI, db DB, chatID int64) {
 		return
 	}
 
-	if err = db.SavePoll(chatID, pollMsg.MessageID, pollMsg.Poll.ID); err != nil {
+	if err = db.SavePoll(chatID, pollMsg.MessageID, pollMsg.Poll.ID, weekNumber, year); err != nil {
 		log.Printf("Ошибка сохранения опроса: %v", err)
 		bot.Send(tgbotapi.NewMessage(chatID, errorSavePollText))
 		return
@@ -84,17 +94,15 @@ func handleNewPollImpl(bot *tgbotapi.BotAPI, db DB, chatID int64) {
 	bot.Send(tgbotapi.NewMessage(chatID, successSavePollText))
 }
 
-// handleNewPoll обрабатывает команду /newpoll
 func handleNewPoll(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
-	handleNewPollImpl(bot, db, msg.Chat.ID)
+	weekNumber, year := getCurrentWeekAndYear()
+
+	newPollImpl(bot, db, msg.Chat.ID, weekNumber, year)
 }
 
-// handleFindPoll обрабатывает команду /findpoll
-func handleFindPoll(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
-	chatID := msg.Chat.ID
-
+func findPollImpl(bot *tgbotapi.BotAPI, db DB, chatID int64, weekNuber, year int) {
 	// Получаем опрос текущей недели
-	poll, err := db.GetCurrentWeekPoll(chatID)
+	poll, err := db.GetWeekPoll(chatID, weekNuber, year)
 	if err != nil {
 		log.Printf("Ошибка получения опроса: %v", err)
 		reply := tgbotapi.NewMessage(chatID, errorSearchPollText)
@@ -125,4 +133,11 @@ func handleFindPoll(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
 		errorReply := tgbotapi.NewMessage(chatID, fmt.Sprintf(errorSendAnswerText+": %v", err))
 		bot.Send(errorReply)
 	}
+}
+
+// handleFindPoll обрабатывает команду /findpoll
+func handleFindCurrentPoll(bot *tgbotapi.BotAPI, db DB, msg *tgbotapi.Message) {
+	weekNumber, year := getCurrentWeekAndYear()
+
+	findPollImpl(bot, db, msg.Chat.ID, weekNumber, year)
 }
