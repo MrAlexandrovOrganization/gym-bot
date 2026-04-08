@@ -81,6 +81,19 @@ func (a *App) newPollImpl(chatID int64, weekNumber, year int) {
 		return
 	}
 
+	go func() {
+		pinChatMessageConfig := tgbotapi.PinChatMessageConfig{
+			ChatID:              pollMsg.Chat.ID,
+			MessageID:           pollMsg.MessageID,
+			DisableNotification: true,
+		}
+		_, err = a.bot.Request(pinChatMessageConfig)
+		if err != nil {
+			log.Printf("Ошибка закрепления сообщения: %v", err)
+			return
+		}
+	}()
+
 	if err = a.db.SavePoll(chatID, pollMsg.MessageID, pollMsg.Poll.ID, weekNumber, year); err != nil {
 		log.Printf("Ошибка сохранения опроса: %v", err)
 		a.bot.Send(tgbotapi.NewMessage(chatID, errorSavePollText))
