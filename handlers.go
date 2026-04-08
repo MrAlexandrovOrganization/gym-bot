@@ -28,7 +28,7 @@ func NewBot(token string) (*tgbotapi.BotAPI, error) {
 func (a *App) handleCommand(msg *tgbotapi.Message) {
 	handler, ok := commands[msg.Command()]
 	if !ok {
-		a.bot.Send(tgbotapi.NewMessage(msg.Chat.ID, handleUnknownCommandText))
+		sendMessage(a.bot, msg.Chat.ID, handleUnknownCommandText)
 		return
 	}
 	handler(a, msg)
@@ -36,12 +36,12 @@ func (a *App) handleCommand(msg *tgbotapi.Message) {
 
 // handleStart обрабатывает команду /start
 func handleStart(app *App, msg *tgbotapi.Message) {
-	app.bot.Send(tgbotapi.NewMessage(msg.Chat.ID, handleStartText))
+	sendMessage(app.bot, msg.Chat.ID, handleStartText)
 }
 
 // handleHelp обрабатывает команду /help
 func handleHelp(app *App, msg *tgbotapi.Message) {
-	app.bot.Send(tgbotapi.NewMessage(msg.Chat.ID, handleHelpText))
+	sendMessage(app.bot, msg.Chat.ID, handleHelpText)
 }
 
 func checkWeekPoll(db DB, chatID int64, weekNumber int, year int) (bool, error) {
@@ -66,7 +66,7 @@ func (a *App) newPollImpl(chatID int64, weekNumber, year int) {
 	hasWeekPoll, err := checkWeekPoll(a.db, chatID, weekNumber, year)
 	if err != nil {
 		log.Printf("Ошибка проверки опроса: %v", err)
-		a.bot.Send(tgbotapi.NewMessage(chatID, errorCheckPollText))
+		sendMessage(a.bot, chatID, errorCheckPollText)
 		return
 	}
 	if hasWeekPoll {
@@ -77,7 +77,7 @@ func (a *App) newPollImpl(chatID int64, weekNumber, year int) {
 	pollMsg, err := a.bot.Send(createPoll(chatID))
 	if err != nil {
 		log.Printf("Ошибка создания опроса: %v", err)
-		a.bot.Send(tgbotapi.NewMessage(chatID, errorCreatePollText))
+		sendMessage(a.bot, chatID, errorCreatePollText)
 		return
 	}
 
@@ -96,11 +96,11 @@ func (a *App) newPollImpl(chatID int64, weekNumber, year int) {
 
 	if err = a.db.SavePoll(chatID, pollMsg.MessageID, pollMsg.Poll.ID, weekNumber, year); err != nil {
 		log.Printf("Ошибка сохранения опроса: %v", err)
-		a.bot.Send(tgbotapi.NewMessage(chatID, errorSavePollText))
+		sendMessage(a.bot, chatID, errorSavePollText)
 		return
 	}
 
-	a.bot.Send(tgbotapi.NewMessage(chatID, successSavePollText))
+	sendMessage(a.bot, chatID, successSavePollText)
 }
 
 func handleNewPoll(app *App, msg *tgbotapi.Message) {
@@ -112,12 +112,12 @@ func (a *App) findPollImpl(chatID int64, weekNumber, year int) {
 	poll, err := a.db.GetWeekPoll(chatID, weekNumber, year)
 	if err != nil {
 		log.Printf("Ошибка получения опроса: %v", err)
-		a.bot.Send(tgbotapi.NewMessage(chatID, errorSearchPollText))
+		sendMessage(a.bot, chatID, errorSearchPollText)
 		return
 	}
 
 	if poll == nil {
-		a.bot.Send(tgbotapi.NewMessage(chatID, errorNoPollText))
+		sendMessage(a.bot, chatID, errorNoPollText)
 		return
 	}
 
@@ -129,11 +129,11 @@ func (a *App) findPollImpl(chatID int64, weekNumber, year int) {
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "message to reply not found") ||
 			strings.Contains(errMsg, "replied message not found") {
-			a.bot.Send(tgbotapi.NewMessage(chatID, errorPollUnavailableText))
+			sendMessage(a.bot, chatID, errorPollUnavailableText)
 			return
 		}
 		log.Printf("Ошибка отправки ответа: %v", err)
-		a.bot.Send(tgbotapi.NewMessage(chatID, fmt.Sprintf(errorSendAnswerText+": %v", err)))
+		sendMessage(a.bot, chatID, fmt.Sprintf(errorSendAnswerText+": %v", err))
 	}
 }
 
