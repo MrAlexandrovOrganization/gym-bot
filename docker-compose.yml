@@ -17,6 +17,18 @@ services:
     networks:
       - gym-bot-network
 
+    logging: &default-logging
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "3"
+
+    deploy: &default-deploy
+      resources:
+        limits:
+          memory: 1g
+          cpus: "1.0"
+
   bot:
     build:
       context: .
@@ -32,6 +44,8 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
     networks:
       - gym-bot-network
+    logging: *default-logging
+    deploy: *default-deploy
 
 volumes:
   postgres_data:
