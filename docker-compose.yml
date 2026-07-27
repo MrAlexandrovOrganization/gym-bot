@@ -16,7 +16,6 @@ services:
       retries: 5
     networks:
       - gym-bot-network
-
     extends:
       file: docker-compose.base.yml
       service: base
@@ -34,16 +33,19 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       ALLOWED_CHAT_ID: ${ALLOWED_CHAT_ID}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      HTTPS_PROXY: socks5://host.docker.internal:10808
+      NO_PROXY: postgres,localhost,127.0.0.1
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     networks:
       - gym-bot-network
     extends:
       file: docker-compose.base.yml
       service: base
-
     deploy:
       resources:
         limits:
-          memory: 32m
+          memory: 16m
 
 volumes:
   postgres_data:
