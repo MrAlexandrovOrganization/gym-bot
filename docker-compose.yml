@@ -35,8 +35,6 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       ALLOWED_CHAT_ID: ${ALLOWED_CHAT_ID}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
-      HTTPS_PROXY: socks5://host.docker.internal:10808
-      NO_PROXY: postgres,localhost,127.0.0.1
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
