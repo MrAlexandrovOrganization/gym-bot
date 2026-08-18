@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/signal"
 	"strconv"
+	"strings"
 	"syscall"
 	"time"
 
@@ -28,6 +29,16 @@ func getAllowedChatID() (int64, error) {
 	return strconv.ParseInt(s, 10, 64)
 }
 
+// apiEndpoint builds the go-telegram-bot-api endpoint format string for the
+// local Telegram Bot API server, or "" to use the default api.telegram.org.
+func apiEndpoint() string {
+	base := strings.TrimRight(os.Getenv("TELEGRAM_LOCAL_API_URL"), "/")
+	if base == "" {
+		return ""
+	}
+	return base + "/bot%s/%s"
+}
+
 func init() {
 	if err := godotenv.Load(); err != nil {
 		log.Println("Файл .env не найден, используются системные переменные окружения")
@@ -39,7 +50,7 @@ func newApp() (*App, error) {
 	g := new(errgroup.Group)
 
 	g.Go(func() (err error) {
-		app.bot, err = NewBot(os.Getenv("TELEGRAM_BOT_TOKEN"))
+		app.bot, err = NewBot(os.Getenv("TELEGRAM_BOT_TOKEN"), apiEndpoint())
 		if err != nil {
 			return err
 		}

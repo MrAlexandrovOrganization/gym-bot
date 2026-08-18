@@ -35,10 +35,12 @@ services:
       TELEGRAM_BOT_TOKEN: ${TELEGRAM_BOT_TOKEN}
       ALLOWED_CHAT_ID: ${ALLOWED_CHAT_ID}
       DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@postgres:5432/${POSTGRES_DB}?sslmode=disable
+      TELEGRAM_LOCAL_API_URL: http://telegram-bot-api:8081
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
       - gym-bot-network
+      - telegram-net
     extends:
       file: docker-compose.base.yml
       service: base
@@ -54,3 +56,5 @@ volumes:
 networks:
   gym-bot-network:
     driver: bridge
+  telegram-net:
+    external: true

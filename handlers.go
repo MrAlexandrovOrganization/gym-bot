@@ -17,11 +17,14 @@ var commands = map[string]CommandHandler{
 	"findpoll": handleFindCurrentPoll,
 }
 
-func NewBot(token string) (*tgbotapi.BotAPI, error) {
+func NewBot(token, apiEndpoint string) (*tgbotapi.BotAPI, error) {
 	if token == "" {
 		return nil, fmt.Errorf("TELEGRAM_BOT_TOKEN is empty")
 	}
-	return tgbotapi.NewBotAPI(token)
+	if apiEndpoint == "" {
+		return tgbotapi.NewBotAPI(token)
+	}
+	return tgbotapi.NewBotAPIWithAPIEndpoint(token, apiEndpoint)
 }
 
 // handleCommand обрабатывает команды бота
