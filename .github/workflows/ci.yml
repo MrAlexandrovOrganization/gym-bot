@@ -8,10 +8,41 @@ on:
 
 jobs:
 
+  validate:
+    name: Validate
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Check out
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+          cache: true
+
+      - name: Check formatting
+        run: |
+          files="$(gofmt -l *.go)"
+          status=$?
+          test "$status" -eq 0 || exit "$status"
+          test -z "$files"
+
+      - name: Run vet
+        run: go vet ./...
+
+      - name: Run tests
+        run: go test ./...
+
+      - name: Validate Compose
+        run: make config-check
+
   deploy:
     name: Deploy to VM
     runs-on: ubuntu-24.04
     if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    needs: validate
 
     steps:
       - name: Deploy via SSH

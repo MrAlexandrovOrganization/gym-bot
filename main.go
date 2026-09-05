@@ -7,6 +7,7 @@ import (
 	"os/signal"
 	"strconv"
 	"strings"
+	"sync"
 	"syscall"
 	"time"
 
@@ -19,6 +20,7 @@ type App struct {
 	bot           *tgbotapi.BotAPI
 	db            DB
 	allowedChatID int64
+	pollMu        sync.Mutex
 }
 
 func getAllowedChatID() (int64, error) {
@@ -128,7 +130,7 @@ func main() {
 
 	startCron("0 22 * * 0", func() {
 		log.Println("[cron] Запуск автоматического создания опроса...")
-		nextDate := time.Now().AddDate(0, 0, 1)
+		nextDate := time.Now().In(moscow).AddDate(0, 0, 1)
 		week, year := getWeekAndYear(nextDate)
 		app.newPollImpl(app.allowedChatID, week, year)
 	})

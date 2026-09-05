@@ -66,6 +66,9 @@ func createPoll(chatID int64) tgbotapi.SendPollConfig {
 }
 
 func (a *App) newPollImpl(chatID int64, weekNumber, year int) {
+	a.pollMu.Lock()
+	defer a.pollMu.Unlock()
+
 	hasWeekPoll, err := checkWeekPoll(a.db, chatID, weekNumber, year)
 	if err != nil {
 		log.Printf("Ошибка проверки опроса: %v", err)
@@ -136,7 +139,7 @@ func (a *App) findPollImpl(chatID int64, weekNumber, year int) {
 			return
 		}
 		log.Printf("Ошибка отправки ответа: %v", err)
-		sendMessage(a.bot, chatID, fmt.Sprintf(errorSendAnswerText+": %v", err))
+		sendMessage(a.bot, chatID, errorSendAnswerText)
 	}
 }
 

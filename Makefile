@@ -1,4 +1,4 @@
-.PHONY: help up down restart logs logs-bot logs-db build rebuild ps db clean stop env
+.PHONY: help up down restart logs logs-bot logs-db build rebuild ps db clean stop env fmt fmt-check lint test config-check check
 
 DOCKER_COMPOSE := docker compose
 
@@ -23,7 +23,7 @@ env: ## Создать .env файл из .env.example
 
 up: ## Запустить все контейнеры
 	@echo "$(GREEN)Запуск контейнеров...$(NC)"
-	$(DOCKER_COMPOSE) up -d
+	$(DOCKER_COMPOSE) up -d --build
 	@echo "$(GREEN)✓$(NC) Контейнеры запущены"
 	@echo "$(YELLOW)Используйте 'make logs' для просмотра логов$(NC)"
 
@@ -101,12 +101,19 @@ dev: ## Запустить в режиме разработки (без -d)
 shell: ## Открыть shell в контейнере бота
 	$(DOCKER_COMPOSE) exec bot sh
 
-test: ## Проверить конфигурацию и подключение
-	@echo "$(GREEN)Проверка конфигурации...$(NC)"
-	@if [ ! -f .env ]; then \
-		echo "$(YELLOW)⚠$(NC) Файл .env не найден. Создайте его командой: make env"; \
-		exit 1; \
-	fi
-	@echo "$(GREEN)✓$(NC) Файл .env существует"
-	@$(DOCKER_COMPOSE) config > /dev/null && echo "$(GREEN)✓$(NC) docker-compose.yml валиден"
-	@echo "$(GREEN)✓$(NC) Конфигурация в порядке"
+fmt: ## Форматировать исходный код
+	gofmt -w *.go
+
+fmt-check: ## Проверить форматирование без изменения файлов
+	@files="$$(gofmt -l *.go)"; status=$$?; test $$status -eq 0 || exit $$status; test -z "$$files"
+
+lint: ## Запустить статическую проверку Go-кода
+	go vet ./...
+
+test: ## Запустить тесты Go
+	go test ./...
+
+config-check: ## Проверить Compose с синтетической конфигурацией
+	@TELEGRAM_BOT_TOKEN=dummy ALLOWED_CHAT_ID=-1001234567890 POSTGRES_USER=gymbot POSTGRES_PASSWORD=dummy POSTGRES_DB=gymbot $(DOCKER_COMPOSE) config > /dev/null
+
+check: fmt-check lint test config-check
