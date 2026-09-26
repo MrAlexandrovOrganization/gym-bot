@@ -1,7 +1,7 @@
 package main
 
 import (
-	"log"
+	"log/slog"
 	"time"
 
 	"github.com/robfig/cron/v3"
@@ -13,5 +13,5 @@ func startCron(schedule string, job func()) {
 	c := cron.New(cron.WithLocation(moscow))
 	c.AddFunc(schedule, job)
 	c.Start()
-	log.Printf("[cron] Запущен с расписанием: %s (UTC+3)", schedule)
+	slog.Info("[cron] Запущен с расписанием", slog.String("schedule", schedule))
 }

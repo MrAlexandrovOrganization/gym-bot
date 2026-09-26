@@ -245,7 +245,7 @@ docker-compose down -v
 
 ### Подключение к PostgreSQL
 
-База данных доступна на `localhost:5432` (при использовании docker-compose).
+База данных доступна на `localhost:5440` (при использовании docker-compose).
 
 Для прямого подключения:
 ```bash
@@ -255,7 +255,7 @@ docker-compose exec postgres psql -U gymbot -d gymbot
 Или через любой PostgreSQL клиент:
 ```
 Host: localhost
-Port: 5432
+Port: 5440
 Database: gymbot
 User: gymbot
 Password: (из .env)
@@ -305,7 +305,7 @@ GRANT ALL PRIVILEGES ON DATABASE gymbot TO gymbot;
 ```env
 TELEGRAM_BOT_TOKEN=ваш_токен
 ALLOWED_CHAT_ID=-1001234567890
-DATABASE_URL=postgresql://gymbot:password@localhost:5432/gymbot?sslmode=disable
+DATABASE_URL=postgresql://gymbot:password@localhost:5440/gymbot?sslmode=disable
 ```
 
 4. Запустите бота:

@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"os"
 	"os/signal"
 	"strconv"
@@ -14,6 +14,8 @@ import (
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
 	"golang.org/x/sync/errgroup"
+
+	"github.com/mrralexandrov/gym-bot/logx"
 )
 
 type App struct {
@@ -42,8 +44,11 @@ func apiEndpoint() string {
 }
 
 func init() {
-	if err := godotenv.Load(); err != nil {
-		log.Println("Файл .env не найден, используются системные переменные окружения")
+	// .env загружается до установки логгера, чтобы LOG_LEVEL из .env учитывался.
+	err := godotenv.Load()
+	logx.Setup("gym-bot", os.Getenv("TELEGRAM_BOT_TOKEN"))
+	if err != nil {
+		slog.Warn("Файл .env не найден, используются системные переменные окружения")
 	}
 }
 
@@ -56,7 +61,7 @@ func newApp() (*App, error) {
 		if err != nil {
 			return err
 		}
-		log.Printf("Авторизован как @%s", app.bot.Self.UserName)
+		slog.Info("Авторизован как", slog.String("username", app.bot.Self.UserName))
 		return nil
 	})
 
@@ -65,7 +70,7 @@ func newApp() (*App, error) {
 		if err != nil {
 			return err
 		}
-		log.Println("Успешное подключение к PostgreSQL")
+		slog.Info("Успешное подключение к PostgreSQL")
 		return nil
 	})
 
@@ -74,7 +79,7 @@ func newApp() (*App, error) {
 		if err != nil {
 			return err
 		}
-		log.Printf("Бот работает только с чатом ID: %d", app.allowedChatID)
+		slog.Info("Бот работает только с чатом", slog.Int64("chat_id", app.allowedChatID))
 		return nil
 	})
 
@@ -96,11 +101,11 @@ func (a *App) startPolling() {
 
 	go func() {
 		<-sigChan
-		log.Println("Завершение работы бота...")
+		slog.Info("Завершение работы бота...")
 		a.bot.StopReceivingUpdates()
 	}()
 
-	log.Println("✅ Бот запущен и готов к работе!")
+	slog.Info("✅ Бот запущен и готов к работе!")
 
 	for update := range updates {
 		go func() {
@@ -109,8 +114,9 @@ func (a *App) startPolling() {
 			}
 
 			if update.Message.Chat.ID != a.allowedChatID {
-				log.Printf("Игнорируем сообщение из неразрешённого чата: %d (разрешён: %d)",
-					update.Message.Chat.ID, a.allowedChatID)
+				slog.Warn("Игнорируем сообщение из неразрешённого чата",
+					slog.Int64("chat_id", update.Message.Chat.ID),
+					slog.Int64("allowed_chat_id", a.allowedChatID))
 				return
 			}
 
@@ -124,12 +130,13 @@ func (a *App) startPolling() {
 func main() {
 	app, err := newApp()
 	if err != nil {
-		log.Fatal(err)
+		slog.Error("Ошибка инициализации приложения", slog.Any("error", err))
+		os.Exit(1)
 	}
 	defer app.db.Close()
 
 	startCron("0 22 * * 0", func() {
-		log.Println("[cron] Запуск автоматического создания опроса...")
+		slog.Info("[cron] Запуск автоматического создания опроса...")
 		nextDate := time.Now().In(moscow).AddDate(0, 0, 1)
 		week, year := getWeekAndYear(nextDate)
 		app.newPollImpl(app.allowedChatID, week, year)

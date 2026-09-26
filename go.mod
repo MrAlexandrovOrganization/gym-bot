@@ -10,3 +10,8 @@ require (
 )
 
 require github.com/robfig/cron/v3 v3.0.1
+
+require (
+	go.opentelemetry.io/otel v1.35.0 // indirect
+	go.opentelemetry.io/otel/trace v1.35.0
+)

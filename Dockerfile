@@ -14,6 +14,7 @@ COPY go.mod go.sum ./
 RUN go mod download
 
 # Копируем исходный код
+COPY logx ./logx
 COPY *.go ./
 
 # Собираем приложение

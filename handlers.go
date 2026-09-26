@@ -2,7 +2,7 @@ package main
 
 import (
 	"fmt"
-	"log"
+	"log/slog"
 	"strings"
 
 	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
@@ -71,7 +71,7 @@ func (a *App) newPollImpl(chatID int64, weekNumber, year int) {
 
 	hasWeekPoll, err := checkWeekPoll(a.db, chatID, weekNumber, year)
 	if err != nil {
-		log.Printf("Ошибка проверки опроса: %v", err)
+		slog.Error("Ошибка проверки опроса", slog.Any("error", err))
 		sendMessage(a.bot, chatID, errorCheckPollText)
 		return
 	}
@@ -82,7 +82,7 @@ func (a *App) newPollImpl(chatID int64, weekNumber, year int) {
 
 	pollMsg, err := a.bot.Send(createPoll(chatID))
 	if err != nil {
-		log.Printf("Ошибка создания опроса: %v", err)
+		slog.Error("Ошибка создания опроса", slog.Any("error", err))
 		sendMessage(a.bot, chatID, errorCreatePollText)
 		return
 	}
@@ -95,13 +95,15 @@ func (a *App) newPollImpl(chatID int64, weekNumber, year int) {
 		}
 		_, err = a.bot.Request(pinChatMessageConfig)
 		if err != nil {
-			log.Printf("Ошибка закрепления сообщения: %v", err)
+			slog.Error("Ошибка закрепления сообщения",
+				slog.Int("message_id", pollMsg.MessageID),
+				slog.Any("error", err))
 			return
 		}
 	}()
 
 	if err = a.db.SavePoll(chatID, pollMsg.MessageID, pollMsg.Poll.ID, weekNumber, year); err != nil {
-		log.Printf("Ошибка сохранения опроса: %v", err)
+		slog.Error("Ошибка сохранения опроса", slog.Any("error", err))
 		sendMessage(a.bot, chatID, errorSavePollText)
 		return
 	}
@@ -117,7 +119,7 @@ func handleNewPoll(app *App, msg *tgbotapi.Message) {
 func (a *App) findPollImpl(chatID int64, weekNumber, year int) {
 	poll, err := a.db.GetWeekPoll(chatID, weekNumber, year)
 	if err != nil {
-		log.Printf("Ошибка получения опроса: %v", err)
+		slog.Error("Ошибка получения опроса", slog.Any("error", err))
 		sendMessage(a.bot, chatID, errorSearchPollText)
 		return
 	}
@@ -138,7 +140,7 @@ func (a *App) findPollImpl(chatID int64, weekNumber, year int) {
 			sendMessage(a.bot, chatID, errorPollUnavailableText)
 			return
 		}
-		log.Printf("Ошибка отправки ответа: %v", err)
+		slog.Error("Ошибка отправки ответа", slog.Any("error", err))
 		sendMessage(a.bot, chatID, errorSendAnswerText)
 	}
 }
