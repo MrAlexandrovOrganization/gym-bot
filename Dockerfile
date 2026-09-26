@@ -1,5 +1,5 @@
 # Этап 1: Сборка приложения
-FROM golang:1.25-alpine AS builder
+FROM golang:1.26.7-alpine AS builder
 
 # Устанавливаем необходимые пакеты для сборки
 RUN apk add --no-cache git ca-certificates tzdata

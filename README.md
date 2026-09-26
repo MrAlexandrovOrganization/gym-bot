@@ -263,7 +263,7 @@ Password: (из .env)
 
 ## 📦 Зависимости
 
-- [`github.com/go-telegram-bot-api/telegram-bot-api/v5`](https://github.com/go-telegram-bot-api/telegram-bot-api) - Telegram Bot API для Go
+- [`github.com/mymmrac/telego`](https://github.com/mymmrac/telego) - Telegram Bot API для Go
 - [`github.com/lib/pq`](https://github.com/lib/pq) - PostgreSQL драйвер для Go
 - [`github.com/joho/godotenv`](https://github.com/joho/godotenv) - Загрузка переменных окружения из .env файла
 - [`golang.org/x/sync/errgroup`](https://pkg.go.dev/golang.org/x/sync/errgroup) - Параллельный запуск горутин с обработкой ошибок

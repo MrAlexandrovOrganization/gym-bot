@@ -1,14 +1,16 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegoutil"
 )
 
-type CommandHandler func(app *App, msg *tgbotapi.Message)
+type CommandHandler func(app *App, ctx context.Context, msg *telego.Message)
 
 var commands = map[string]CommandHandler{
 	"start":    handleStart,
@@ -17,34 +19,39 @@ var commands = map[string]CommandHandler{
 	"findpoll": handleFindCurrentPoll,
 }
 
-func NewBot(token, apiEndpoint string) (*tgbotapi.BotAPI, error) {
+// NewBot создаёт клиента Telegram Bot API. Пустой apiServerURL означает
+// официальный api.telegram.org, иначе используется указанный локальный сервер.
+func NewBot(token, apiServerURL string) (*telego.Bot, error) {
 	if token == "" {
 		return nil, fmt.Errorf("TELEGRAM_BOT_TOKEN is empty")
 	}
-	if apiEndpoint == "" {
-		return tgbotapi.NewBotAPI(token)
+
+	opts := []telego.BotOption{telego.WithLogger(slogLogger{})}
+	if apiServerURL != "" {
+		opts = append(opts, telego.WithAPIServer(apiServerURL))
 	}
-	return tgbotapi.NewBotAPIWithAPIEndpoint(token, apiEndpoint)
+
+	return telego.NewBot(token, opts...)
 }
 
 // handleCommand обрабатывает команды бота
-func (a *App) handleCommand(msg *tgbotapi.Message) {
-	handler, ok := commands[msg.Command()]
+func (a *App) handleCommand(ctx context.Context, cmd string, msg *telego.Message) {
+	handler, ok := commands[cmd]
 	if !ok {
-		sendMessage(a.bot, msg.Chat.ID, handleUnknownCommandText)
+		sendMessage(ctx, a.bot, msg.Chat.ID, handleUnknownCommandText)
 		return
 	}
-	handler(a, msg)
+	handler(a, ctx, msg)
 }
 
 // handleStart обрабатывает команду /start
-func handleStart(app *App, msg *tgbotapi.Message) {
-	sendMessage(app.bot, msg.Chat.ID, handleStartText)
+func handleStart(app *App, ctx context.Context, msg *telego.Message) {
+	sendMessage(ctx, app.bot, msg.Chat.ID, handleStartText)
 }
 
 // handleHelp обрабатывает команду /help
-func handleHelp(app *App, msg *tgbotapi.Message) {
-	sendMessage(app.bot, msg.Chat.ID, handleHelpText)
+func handleHelp(app *App, ctx context.Context, msg *telego.Message) {
+	sendMessage(ctx, app.bot, msg.Chat.ID, handleHelpText)
 }
 
 func checkWeekPoll(db DB, chatID int64, weekNumber int, year int) (bool, error) {
@@ -55,45 +62,45 @@ func checkWeekPoll(db DB, chatID int64, weekNumber int, year int) (bool, error) 
 	return hasWeekPoll, nil
 }
 
-func createPoll(chatID int64) tgbotapi.SendPollConfig {
-	return tgbotapi.SendPollConfig{
-		BaseChat:              tgbotapi.BaseChat{ChatID: chatID},
-		Question:              pollQuestion,
-		Options:               weekdays,
-		IsAnonymous:           false,
-		AllowsMultipleAnswers: true,
+func createPoll(chatID int64) *telego.SendPollParams {
+	options := make([]telego.InputPollOption, 0, len(weekdays))
+	for _, day := range weekdays {
+		options = append(options, telegoutil.PollOption(day))
 	}
+
+	return telegoutil.Poll(telego.ChatID{ID: chatID}, pollQuestion, options...).
+		WithIsAnonymous(false).
+		WithAllowsMultipleAnswers()
 }
 
-func (a *App) newPollImpl(chatID int64, weekNumber, year int) {
+func (a *App) newPollImpl(ctx context.Context, chatID int64, weekNumber, year int) {
 	a.pollMu.Lock()
 	defer a.pollMu.Unlock()
 
 	hasWeekPoll, err := checkWeekPoll(a.db, chatID, weekNumber, year)
 	if err != nil {
 		slog.Error("Ошибка проверки опроса", slog.Any("error", err))
-		sendMessage(a.bot, chatID, errorCheckPollText)
+		sendMessage(ctx, a.bot, chatID, errorCheckPollText)
 		return
 	}
 	if hasWeekPoll {
-		a.findPollImpl(chatID, weekNumber, year)
+		a.findPollImpl(ctx, chatID, weekNumber, year)
 		return
 	}
 
-	pollMsg, err := a.bot.Send(createPoll(chatID))
+	pollMsg, err := a.bot.SendPoll(ctx, createPoll(chatID))
 	if err != nil {
 		slog.Error("Ошибка создания опроса", slog.Any("error", err))
-		sendMessage(a.bot, chatID, errorCreatePollText)
+		sendMessage(ctx, a.bot, chatID, errorCreatePollText)
 		return
 	}
 
 	go func() {
-		pinChatMessageConfig := tgbotapi.PinChatMessageConfig{
-			ChatID:              pollMsg.Chat.ID,
+		err := a.bot.PinChatMessage(ctx, &telego.PinChatMessageParams{
+			ChatID:              telego.ChatID{ID: pollMsg.Chat.ID},
 			MessageID:           pollMsg.MessageID,
 			DisableNotification: true,
-		}
-		_, err = a.bot.Request(pinChatMessageConfig)
+		})
 		if err != nil {
 			slog.Error("Ошибка закрепления сообщения",
 				slog.Int("message_id", pollMsg.MessageID),
@@ -104,49 +111,52 @@ func (a *App) newPollImpl(chatID int64, weekNumber, year int) {
 
 	if err = a.db.SavePoll(chatID, pollMsg.MessageID, pollMsg.Poll.ID, weekNumber, year); err != nil {
 		slog.Error("Ошибка сохранения опроса", slog.Any("error", err))
-		sendMessage(a.bot, chatID, errorSavePollText)
+		sendMessage(ctx, a.bot, chatID, errorSavePollText)
 		return
 	}
 
-	sendMessage(a.bot, chatID, successSavePollText)
+	sendMessage(ctx, a.bot, chatID, successSavePollText)
 }
 
-func handleNewPoll(app *App, msg *tgbotapi.Message) {
+func handleNewPoll(app *App, ctx context.Context, msg *telego.Message) {
 	weekNumber, year := getCurrentWeekAndYear()
-	app.newPollImpl(msg.Chat.ID, weekNumber, year)
+	app.newPollImpl(ctx, msg.Chat.ID, weekNumber, year)
 }
 
-func (a *App) findPollImpl(chatID int64, weekNumber, year int) {
+func (a *App) findPollImpl(ctx context.Context, chatID int64, weekNumber, year int) {
 	poll, err := a.db.GetWeekPoll(chatID, weekNumber, year)
 	if err != nil {
 		slog.Error("Ошибка получения опроса", slog.Any("error", err))
-		sendMessage(a.bot, chatID, errorSearchPollText)
+		sendMessage(ctx, a.bot, chatID, errorSearchPollText)
 		return
 	}
 
 	if poll == nil {
-		sendMessage(a.bot, chatID, errorNoPollText)
+		sendMessage(ctx, a.bot, chatID, errorNoPollText)
 		return
 	}
 
-	reply := tgbotapi.NewMessage(chatID, currentPollText)
-	reply.ReplyToMessageID = poll.MessageID
+	reply := &telego.SendMessageParams{
+		ChatID:          telego.ChatID{ID: chatID},
+		Text:            currentPollText,
+		ReplyParameters: &telego.ReplyParameters{MessageID: poll.MessageID},
+	}
 
-	_, err = a.bot.Send(reply)
+	_, err = a.bot.SendMessage(ctx, reply)
 	if err != nil {
 		errMsg := err.Error()
 		if strings.Contains(errMsg, "message to reply not found") ||
 			strings.Contains(errMsg, "replied message not found") {
-			sendMessage(a.bot, chatID, errorPollUnavailableText)
+			sendMessage(ctx, a.bot, chatID, errorPollUnavailableText)
 			return
 		}
 		slog.Error("Ошибка отправки ответа", slog.Any("error", err))
-		sendMessage(a.bot, chatID, errorSendAnswerText)
+		sendMessage(ctx, a.bot, chatID, errorSendAnswerText)
 	}
 }
 
 // handleFindCurrentPoll обрабатывает команду /findpoll
-func handleFindCurrentPoll(app *App, msg *tgbotapi.Message) {
+func handleFindCurrentPoll(app *App, ctx context.Context, msg *telego.Message) {
 	weekNumber, year := getCurrentWeekAndYear()
-	app.findPollImpl(msg.Chat.ID, weekNumber, year)
+	app.findPollImpl(ctx, msg.Chat.ID, weekNumber, year)
 }

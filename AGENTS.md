@@ -14,10 +14,10 @@ constants.go   # Текстовые константы для ответов б�
 
 ## Стек
 
-- **Go 1.25** — основной язык
+- **Go 1.26.7** — основной язык
 - **PostgreSQL 15** — хранение опросов
 - **Docker + docker-compose** — деплой и локальная разработка
-- **github.com/go-telegram-bot-api/telegram-bot-api/v5** — Telegram Bot API
+- **github.com/mymmrac/telego** — Telegram Bot API
 - **github.com/lib/pq** — PostgreSQL драйвер
 - **github.com/joho/godotenv** — загрузка `.env`
 - **golang.org/x/sync/errgroup** — параллельная инициализация

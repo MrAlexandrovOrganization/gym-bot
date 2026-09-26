@@ -1,6 +1,7 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"os"
@@ -11,15 +12,16 @@ import (
 	"syscall"
 	"time"
 
-	tgbotapi "github.com/go-telegram-bot-api/telegram-bot-api/v5"
 	"github.com/joho/godotenv"
+	"github.com/mymmrac/telego"
+	"github.com/mymmrac/telego/telegoutil"
 	"golang.org/x/sync/errgroup"
 
 	"github.com/mrralexandrov/gym-bot/logx"
 )
 
 type App struct {
-	bot           *tgbotapi.BotAPI
+	bot           *telego.Bot
 	db            DB
 	allowedChatID int64
 	pollMu        sync.Mutex
@@ -33,14 +35,11 @@ func getAllowedChatID() (int64, error) {
 	return strconv.ParseInt(s, 10, 64)
 }
 
-// apiEndpoint builds the go-telegram-bot-api endpoint format string for the
-// local Telegram Bot API server, or "" to use the default api.telegram.org.
-func apiEndpoint() string {
-	base := strings.TrimRight(os.Getenv("TELEGRAM_LOCAL_API_URL"), "/")
-	if base == "" {
-		return ""
-	}
-	return base + "/bot%s/%s"
+// apiServerURL возвращает базовый URL локального Telegram Bot API-сервера
+// (telego сам добавляет к нему /bot<token>/<method>), либо "" для
+// использования api.telegram.org.
+func apiServerURL() string {
+	return strings.TrimRight(os.Getenv("TELEGRAM_LOCAL_API_URL"), "/")
 }
 
 func init() {
@@ -57,11 +56,15 @@ func newApp() (*App, error) {
 	g := new(errgroup.Group)
 
 	g.Go(func() (err error) {
-		app.bot, err = NewBot(os.Getenv("TELEGRAM_BOT_TOKEN"), apiEndpoint())
+		app.bot, err = NewBot(os.Getenv("TELEGRAM_BOT_TOKEN"), apiServerURL())
 		if err != nil {
 			return err
 		}
-		slog.Info("Авторизован как", slog.String("username", app.bot.Self.UserName))
+		me, err := app.bot.GetMe(context.Background())
+		if err != nil {
+			return fmt.Errorf("не удалось авторизоваться в Telegram: %w", err)
+		}
+		slog.Info("Авторизован как", slog.String("username", me.Username))
 		return nil
 	})
 
@@ -91,10 +94,14 @@ func newApp() (*App, error) {
 }
 
 func (a *App) startPolling() {
-	u := tgbotapi.NewUpdate(0)
-	u.Timeout = 60
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	updates := a.bot.GetUpdatesChan(u)
+	updates, err := a.bot.UpdatesViaLongPolling(ctx, &telego.GetUpdatesParams{Timeout: 60})
+	if err != nil {
+		slog.Error("Ошибка запуска long polling", slog.Any("error", err))
+		os.Exit(1)
+	}
 
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, os.Interrupt, syscall.SIGTERM)
@@ -102,7 +109,7 @@ func (a *App) startPolling() {
 	go func() {
 		<-sigChan
 		slog.Info("Завершение работы бота...")
-		a.bot.StopReceivingUpdates()
+		cancel()
 	}()
 
 	slog.Info("✅ Бот запущен и готов к работе!")
@@ -120,9 +127,12 @@ func (a *App) startPolling() {
 				return
 			}
 
-			if update.Message.IsCommand() {
-				a.handleCommand(update.Message)
+			cmd, _, _ := telegoutil.ParseCommand(update.Message.Text)
+			if cmd == "" {
+				return
 			}
+
+			a.handleCommand(ctx, cmd, update.Message)
 		}()
 	}
 }
@@ -139,7 +149,7 @@ func main() {
 		slog.Info("[cron] Запуск автоматического создания опроса...")
 		nextDate := time.Now().In(moscow).AddDate(0, 0, 1)
 		week, year := getWeekAndYear(nextDate)
-		app.newPollImpl(app.allowedChatID, week, year)
+		app.newPollImpl(context.Background(), app.allowedChatID, week, year)
 	})
 	app.startPolling()
 }
