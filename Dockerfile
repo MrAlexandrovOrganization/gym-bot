@@ -1,5 +1,10 @@
+# check=skip=InvalidDefaultArgInFrom
+
+# Версии обязательны и передаются через Make/Compose.
 # Этап 1: Сборка приложения
-FROM golang:1.26.7-alpine AS builder
+ARG GO_VERSION
+ARG ALPINE_VERSION
+FROM golang:${GO_VERSION}-alpine AS builder
 
 # Устанавливаем необходимые пакеты для сборки
 RUN apk add --no-cache git ca-certificates tzdata
@@ -21,7 +26,7 @@ COPY *.go ./
 RUN CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o gym-bot .
 
 # Этап 2: Минимальный образ для запуска
-FROM alpine:3.23
+FROM alpine:${ALPINE_VERSION}
 
 # Устанавливаем ca-certificates для HTTPS запросов
 RUN apk --no-cache add ca-certificates tzdata

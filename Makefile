@@ -1,6 +1,7 @@
 .PHONY: help up down restart logs logs-bot logs-db build rebuild ps db clean stop env fmt fmt-check lint test config-check check
 
 DOCKER_COMPOSE := docker compose
+include versions.mk
 
 # Цвета для вывода
 GREEN  := \033[0;32m
@@ -117,3 +118,37 @@ config-check: ## Проверить Compose с синтетической кон
 	@TELEGRAM_BOT_TOKEN=dummy ALLOWED_CHAT_ID=-1001234567890 POSTGRES_USER=gymbot POSTGRES_PASSWORD=dummy POSTGRES_DB=gymbot $(DOCKER_COMPOSE) config > /dev/null
 
 check: fmt-check lint test config-check
+
+.PHONY: versions
+versions:
+	@$(foreach v,$(VERSION_VARS),printf '%s=%s\n' '$(v)' '$($(v))';)
+
+.PHONY: docker-build compose
+docker-build:
+	docker build --build-arg GO_VERSION --build-arg ALPINE_VERSION -t gym-bot:latest .
+ARGS ?= ps
+compose:
+	$(DOCKER_COMPOSE) $(ARGS)
+
+# CI builds/publishes once; VM activates immutable digests (Python 3 + Docker required).
+export IMAGE_COMPOSE_FILE := docker-compose.yml
+.PHONY: image-build image-publish image-deploy image-activate
+image-build:
+	python3 scripts/images.py build
+image-publish:
+	python3 scripts/images.py publish
+image-deploy:
+	python3 scripts/images.py deploy
+image-activate:
+	$(IMAGE_COMPOSE) up -d --no-build --pull never --wait --wait-timeout 180
+
+.PHONY: image-check
+image-check:
+	python3 -B scripts/test_images.py
+
+.PHONY: image-compose
+export IMAGE_ARGS
+image-compose:
+	python3 scripts/images.py compose
+
+include makefiles/ci-deploy.mk

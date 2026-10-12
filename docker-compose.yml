@@ -1,6 +1,6 @@
 services:
   postgres:
-    image: postgres:15-alpine
+    image: postgres:${POSTGRES_VERSION:?Run via make}
     container_name: gym-bot-postgres
     restart: unless-stopped
     environment:
@@ -26,6 +26,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile
+      args:
+        GO_VERSION: ${GO_VERSION:?Run via make}
+        ALPINE_VERSION: ${ALPINE_VERSION:?Run via make}
     container_name: gym-bot
     restart: unless-stopped
     depends_on:
