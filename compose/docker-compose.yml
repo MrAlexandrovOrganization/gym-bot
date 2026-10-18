@@ -19,7 +19,7 @@ services:
     networks:
       - gym-bot-network
     extends:
-      file: docker-compose.base.yml
+      file: compose/docker-compose.base.yml
       service: base
 
   bot:
@@ -45,7 +45,7 @@ services:
       - gym-bot-network
       - telegram-net
     extends:
-      file: docker-compose.base.yml
+      file: compose/docker-compose.base.yml
       service: base
     deploy:
       resources:

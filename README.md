@@ -85,7 +85,7 @@ make logs-bot
 
 Или:
 ```bash
-docker-compose logs -f bot
+docker compose --project-directory . logs -f bot
 ```
 
 Вы должны увидеть:
@@ -158,7 +158,7 @@ make check
 
 ```bash
 # Запустить
-docker-compose up -d
+docker compose --project-directory . -f compose/docker-compose.yml up -d
 
 # Остановить
 make down
@@ -256,7 +256,7 @@ make compose ARGS='down -v'
 
 Для прямого подключения:
 ```bash
-docker-compose exec postgres psql -U gymbot -d gymbot
+docker compose --project-directory . -f compose/docker-compose.yml exec postgres psql -U gymbot -d gymbot
 ```
 
 Или через любой PostgreSQL клиент:
@@ -290,7 +290,7 @@ gym-bot/
 ├── go.mod               # Go модули
 ├── go.sum               # Контрольные суммы модулей
 ├── Dockerfile           # Docker образ для бота
-├── docker-compose.yml   # Оркестрация контейнеров
+├── compose/docker-compose.yml   # Оркестрация контейнеров
 ├── .env.example         # Пример конфигурации
 ├── .gitignore           # Игнорируемые файлы
 └── README.md            # Документация
@@ -344,7 +344,7 @@ docker run --env-file .env gym-bot:latest
 - **Проверьте настройки приватности:** [@BotFather](https://t.me/BotFather) → `/mybots` → ваш бот → **Bot Settings** → **Group Privacy** → **Disable**
 - Убедитесь, что токен в `.env` файле правильный
 - Проверьте, что ID чата в `.env` совпадает с реальным ID группы
-- Проверьте логи: `docker-compose logs -f bot`
+- Проверьте логи: `docker compose --project-directory . logs -f bot`
 
 ### Бот работает в личных сообщениях, но не в группе
 Это означает, что у бота включена Group Privacy или ID чата не совпадает:
@@ -354,34 +354,34 @@ docker run --env-file .env gym-bot:latest
 ### Ошибка подключения к базе данных
 ```bash
 # Проверьте статус контейнера PostgreSQL
-docker-compose ps
+docker compose --project-directory . -f compose/docker-compose.yml ps
 
 # Проверьте логи PostgreSQL
-docker-compose logs postgres
+docker compose --project-directory . -f compose/docker-compose.yml logs postgres
 
 # Убедитесь, что база здорова
-docker-compose exec postgres pg_isready -U gymbot
+docker compose --project-directory . -f compose/docker-compose.yml exec postgres pg_isready -U gymbot
 ```
 
 ### Контейнер постоянно перезапускается
 ```bash
 # Посмотрите логи для диагностики
-docker-compose logs -f bot
+docker compose --project-directory . logs -f bot
 
 # Проверьте все переменные окружения
-docker-compose config
+docker compose --project-directory . -f compose/docker-compose.yml config
 ```
 
 ### База данных потеряна после перезапуска
-Убедитесь, что вы не используете `docker-compose down -v`, который удаляет volumes с данными.
+Убедитесь, что вы не используете `docker compose --project-directory . -f compose/docker-compose.yml down -v`, который удаляет volumes с данными.
 
 ### Как сбросить базу данных
 ```bash
 # Остановить контейнеры и удалить volumes
-docker-compose down -v
+docker compose --project-directory . -f compose/docker-compose.yml down -v
 
 # Запустить заново (создаст чистую БД)
-docker-compose up -d
+docker compose --project-directory . -f compose/docker-compose.yml up -d
 ```
 
 ## 📝 Примеры использования
@@ -479,3 +479,15 @@ VM нужны Python 3.9+, Make, Docker Compose с `--wait`, Git и flock для
 обходные Compose-операции одновременно с доставкой. При первом переходе на GHCR
 `previous.json` ещё отсутствует: сохраните прежние локальные образы и конфигурацию
 для восстановления по runbook до первого релиза.
+
+## Структура Compose
+
+Файлы Docker Compose находятся в `compose/`; основной файл — `compose/docker-compose.yml`.
+Команды запускайте из корня проекта через Makefile: он задаёт `--project-directory`
+на корень checkout. Build contexts, bind mounts, `env_file` и секреты остаются
+относительными к этому корню; имена Compose project, сервисов, сетей и томов сохранены.
+При явном вызове Docker используйте `docker compose --project-directory . -f compose/docker-compose.yml ...`.
+Если в приватной `.env` или окружении задан `COMPOSE_FILE`, добавьте `compose/`
+к прежним именам файлов, сохранив прежний набор overlays и порядок. Для плавного
+перехода Make также распознаёт прежние короткие имена, если файлы уже перенесены.
+Не меняйте project name и не удаляйте прежние тома для переноса файлов.
