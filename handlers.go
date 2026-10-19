@@ -4,9 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
-	"net/http"
 	"strings"
-	"time"
 
 	"github.com/mymmrac/telego"
 	"github.com/mymmrac/telego/telegoutil"
@@ -28,11 +26,7 @@ func NewBot(token, apiServerURL string) (*telego.Bot, error) {
 		return nil, fmt.Errorf("TELEGRAM_BOT_TOKEN is empty")
 	}
 
-	// net/http honours HTTPS_PROXY/NO_PROXY. The timeout includes the 60s poll.
-	opts := []telego.BotOption{
-		telego.WithLogger(slogLogger{}),
-		telego.WithHTTPClient(&http.Client{Timeout: 75 * time.Second}),
-	}
+	opts := []telego.BotOption{telego.WithLogger(slogLogger{})}
 	if apiServerURL != "" {
 		opts = append(opts, telego.WithAPIServer(apiServerURL))
 	}
