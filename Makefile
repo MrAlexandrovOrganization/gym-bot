@@ -3,7 +3,7 @@ include makefiles/compose.mk
 .PHONY: help up down restart logs logs-bot logs-db build rebuild ps db clean stop env fmt fmt-check lint test config-check check
 
 DOCKER_COMPOSE := docker compose --project-directory "$(CURDIR)" $(COMPOSE_FLAGS)
-include versions.mk
+include makefiles/versions.mk
 
 # Цвета для вывода
 GREEN  := \033[0;32m
@@ -159,5 +159,6 @@ include makefiles/ci-deploy.mk
 .PHONY: compose-layout-check
 compose-layout-check:
 	$(DOCKER_COMPOSE_BASE) --env-file /dev/null -f compose/docker-compose.yml --profile '*' config --no-interpolate --no-env-resolution --quiet
+	$(DOCKER_COMPOSE_BASE) --env-file /dev/null -f compose/docker-compose.yml -f compose/compose.hostkey-russia.yml --profile '*' config --no-interpolate --no-env-resolution --quiet
 
 check: compose-layout-check

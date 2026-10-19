@@ -2,12 +2,58 @@
 
 ## Версии сборки
 
-Go берётся из `go.mod`; Alpine и PostgreSQL — из `versions.mk`.
+Go берётся из `go.mod`; Alpine и PostgreSQL — из `makefiles/versions.mk`.
 `make versions` показывает значения. Для сборки и управления контейнерами
 используйте Make (`make build`, `make up`, `make down`): он экспортирует версии
 в Compose и Dockerfile. CI также берёт Go из `go.mod`.
 
 Telegram бот для создания опросов о посещении спортзала. Позволяет участникам группового чата голосовать за дни недели, когда они планируют пойти в зал.
+
+## Production: Hostkey Russia
+
+Бот и PostgreSQL размещаются на `hostkey-russia` в
+`/home/maxim/projects/telegram-bots/gym-bot`. Приватная `.env` выбирает
+`COMPOSE_FILE=compose/docker-compose.yml:compose/compose.hostkey-russia.yml`.
+PostgreSQL хранит данные в прежнем по имени томе `gym-bot_postgres_data` и
+публикует только `127.0.0.1:5440`; Compose project остаётся `gym-bot`.
+Версия PostgreSQL закреплена на образе исходного сервера (15.19).
+
+На Russia бот обращается к официальному `https://api.telegram.org` через
+`HTTPS_PROXY=http://entry:10089` в существующей сети `vpn-control`.
+Этот CONNECT proxy проекта `infra/network/vless-relay` разрешает только
+Telegram API и передаёт запросы через Финляндию. При его недоступности
+Telegram-команды не работают; PostgreSQL остаётся локальным. Прямой доступ к
+Telegram из России при подготовке переноса не прошёл. Общий Bot API на
+`server` и его сеть/медиатом этому размещению не нужны. Обычный Compose
+сохраняет прежний режим с локальным Bot API. HTTP нужен внешнему контракту Telegram.
+Клиент `net/http` поддерживает `HTTPS_PROXY`/`NO_PROXY`; таймаут 75 секунд
+вмещает long polling с ожиданием 60 секунд.
+
+GitHub Secrets `VM_HOST`, `VM_USER`, `VM_SSH_KEY`, `VM_PROJECT_PATH` этого
+репозитория должны указывать на Russia. Не меняйте общие secrets организации
+для переноса одного проекта. CI собирает и публикует образ, затем доставляет
+проверенный SHA и digest штатной целью `ci-deploy`. На VM приложение не собирается.
+Переменная репозитория `DEPLOY_ENABLED=false` временно отключает доставку,
+сохраняя проверки, сборку и публикацию (например, при переносе данных).
+
+При переносе остановите исходный polling, запретите restart старых контейнеров,
+снимите финальный `pg_dump -Fc` и сохраните `.env`, manifests и образы вне VM.
+Восстановите dump в пустую БД на Russia через `pg_restore --exit-on-error`
+и сравните количество строк, полный хэш упорядоченного `polls`, sequence,
+схему и ограничения. Перед включением cloud API вызовите `logOut` именно
+для этого бота на старом локальном API, не останавливая общий API других ботов.
+Порядок переключения описан в
+[официальном руководстве Telegram](https://github.com/tdlib/telegram-bot-api#moving-a-bot-from-one-local-server-to-another).
+Не запускайте два polling-процесса одного токена.
+
+После доставки проверьте SHA, digest, PostgreSQL readiness, авторизацию и
+успешные циклы `getUpdates`, отсутствие конфликтов polling и ошибок/OOM.
+Тестовые сообщения в рабочий чат при инфраструктурной проверке не отправляются.
+Старые контейнеры и том сохраняются остановленными для отката.
+До новых записей можно вернуть прежнее размещение после остановки нового
+polling и `logOut` на cloud API. После новых записей сначала перенесите
+актуальную БД обратно; старый dump нельзя восстанавливать поверх новых данных.
+После cloud `logOut` возврат в cloud блокируется Telegram на 10 минут.
 
 ## 📋 Возможности
 

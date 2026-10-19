@@ -1,5 +1,0 @@
-GO_VERSION := $(shell awk '$$1 == "go" {print $$2; exit}' go.mod)
-ALPINE_VERSION := 3.23
-POSTGRES_VERSION := 15-alpine
-VERSION_VARS := GO_VERSION ALPINE_VERSION POSTGRES_VERSION
-export $(VERSION_VARS)
