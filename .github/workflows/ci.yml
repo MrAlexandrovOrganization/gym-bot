@@ -72,7 +72,7 @@ jobs:
   deploy:
     name: Deploy published digests to VM
     needs: images
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED != 'false'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main' && vars.DEPLOY_ENABLED != 'false' && !contains(github.event.head_commit.message, '[resources-only]')
     runs-on: ubuntu-24.04
     timeout-minutes: 40
     permissions:
