@@ -1,0 +1,9 @@
+{
+  "schema": 1,
+  "service": "gym-bot",
+  "components": [
+    "gym-bot/*"
+  ],
+  "logs": [],
+  "assets": []
+}
